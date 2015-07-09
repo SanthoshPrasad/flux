@@ -33,6 +33,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.HashMap;
 
 public class FluxBuilder {
     private static Logger LOG = LoggerFactory.getLogger(FluxBuilder.class);
@@ -151,23 +152,35 @@ public class FluxBuilder {
             IllegalAccessException {
         TopologyDef topologyDef = context.getTopologyDef();
         // process stream definitions
+  
+   	Map<String,BoltDeclarer> boltDeclarerMap=new HashMap<String,BoltDeclarer>();
         for (StreamDef stream : topologyDef.getStreams()) {
             Object boltObj = context.getBolt(stream.getTo());
             BoltDeclarer declarer = null;
-            if (boltObj instanceof IRichBolt) {
-                declarer = builder.setBolt(stream.getTo(),
-                        (IRichBolt) boltObj,
-                        topologyDef.parallelismForBolt(stream.getTo()));
-            } else if (boltObj instanceof IBasicBolt) {
-                declarer = builder.setBolt(
-                        stream.getTo(),
-                        (IBasicBolt) boltObj,
-                        topologyDef.parallelismForBolt(stream.getTo()));
-            } else {
-                throw new IllegalArgumentException("Class does not appear to be a bolt: " +
-                        boltObj.getClass().getName());
-            }
-
+            
+             // Added below if/else to handle the scenario where a single bolt recieveing data from multiple bolts
+            
+            if(boltDeclarerMap.containsKey(stream.getTo())){
+ 		// If Bolt Declarer Already Existes For The Given Bolt	
+            	declarer=boltDeclarerMap.get(stream.getTo());
+            }else{
+            	// If Bolt Declarer Not Existed For The Given Bolt
+           	 if (boltObj instanceof IRichBolt) {
+                	declarer = builder.setBolt(stream.getTo(),
+                	        (IRichBolt) boltObj,
+                	        topologyDef.parallelismForBolt(stream.getTo()));
+	            } else if (boltObj instanceof IBasicBolt) {
+        	        declarer = builder.setBolt(
+        	                stream.getTo(),
+        	                (IBasicBolt) boltObj,
+        	                topologyDef.parallelismForBolt(stream.getTo()));
+        	    } else {
+        	        throw new IllegalArgumentException("Class does not appear to be a bolt: " +
+        	                boltObj.getClass().getName());
+        	    }
+        	    
+		boltDeclarerMap.put(stream.getTo(),declarer);
+           }
             GroupingDef grouping = stream.getGrouping();
             // if the streamId is defined, use it for the grouping, otherwise assume storm's default stream
             String streamId = (grouping.getStreamId() == null ? Utils.DEFAULT_STREAM_ID : grouping.getStreamId());
